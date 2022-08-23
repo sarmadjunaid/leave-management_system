@@ -1,0 +1,70 @@
+version: "3"
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: leave_management_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASS: admin123
+    volumes:
+       - pgdata:/var/lib/postgresql/data/
+  cache:
+    image: redis
+    restart: always
+    command: redis-server
+    networks:
+      - onboarding-practice_default
+  worker:
+    build: ./backend/
+    command: python manage.py runworker channels
+    volumes: 
+      - .:/web/backend
+    links:
+      - cache
+  djangoq:
+    build: ./backend/
+    command: python manage.py qcluster
+    restart: always
+    ports:
+      - 8001:8000
+    volumes:
+      - .:/web/backend
+    depends_on:
+      - cache
+    networks:
+      - onboarding-practice_default
+  backend:
+    build: 
+      context: ./backend/
+      dockerfile: Dockerfile
+    restart: always
+    ports:
+      - 8000:8000
+    command: python manage.py runserver 0.0.0.0:8000 
+    depends_on:
+      - db
+      - cache
+    links:
+      - db
+      - cache:redis
+    volumes:
+      - .:/web/backend
+  frontend:
+    restart: always
+    command: npm start
+    build:
+      context: ./frontend-ts/
+      dockerfile: Dockerfile
+    ports:
+      - 3000:3000
+    stdin_open: true
+    links:
+      - backend
+    depends_on:
+      - backend
+volumes:
+  pgdata:
+networks:
+  onboarding-practice_default:
+    external: true
